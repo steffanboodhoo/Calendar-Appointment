@@ -1,0 +1,34 @@
+#calendar{
+	width: 100%;
+}
+.flex-col{
+	display: flex;
+	flex-direction: column;
+}
+.flex-row{
+	display: flex;
+	flex-direction: row;
+}
+
+.day{
+	flex:1;
+	margin:0.1%;
+}
+.unselected{
+	background:  #d6d6c2;
+}
+.unselected:hover{
+	background: #b8b894;
+}
+.disabled{
+	background: #eaeae1;
+}
+.selected{
+	background: green;
+}
+
+.hour{
+	flex:1;
+	margin:0.1%;
+	height:8vh;
+}
