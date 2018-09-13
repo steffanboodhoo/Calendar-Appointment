@@ -14,7 +14,8 @@ const CALENDAR = (function(){
 	this.WORK_DAY = [8,9,10,11,12,13,14,15,16,17];
 	let curr_date = new Date();
 	this.date = {"month":curr_date.getMonth(), "year":curr_date.getFullYear(), "date":curr_date.getDate()};
-	this.month_view = null;
+
+	this.ID_MAP = {};
 
 	
 	this.init = (id, cal_date) => {
@@ -24,22 +25,27 @@ const CALENDAR = (function(){
 		LAST_MONTH_DAYS = getMonthDays( cal_date.month-1, cal_date.year );
 		//Today
 		//last day on calendar
-		month_query = {'branch_id':1,
-		 'start_date':`${this.date['year']}-${this.date['month']}-${this.date['date']}`
-		 , 'end_date':`${this.date['year']}-${this.date['month']+1}-${42-(START_DAY+MONTH_DAYS)}`};
+		month_query = {'branch_id':99,
+		 'start_date':`${this.date['year']}-${this.date['month']+1}-${this.date['date']-2}`
+		 , 'end_date':`${this.date['year']}-${this.date['month']+2}-${42-(START_DAY+MONTH_DAYS)}`};
 		console.log(month_query)
 		$.ajax();
+		
+		
+		this.month_data = this.create_month_data(cal_date.month, this.cal_date);
+		// console.log(this.ID_MAP['7_26']);
+		// this.ID_MAP['7_26']['date'] = 999;
 		$.ajax({
-			url:'localhost:1000/appointment_meta',
+			url:'http://localhost:1000/appointment_meta',
 			method:'GET',
 			data:month_query,
-			success:function(resp){
-				console.log(resp)
+			success:(resp)=>{
+				resp = JSON.parse(resp)
+				process_month_data(this.month_data, resp['data'])
+				this.create_month_view(id, this.month_data);
 				}
 			});
 		
-		this.month_data = this.create_month_data(cal_date.month, this.cal_date);
-		this.create_month_view(id, this.month_data);
 	}
 	
 	this.create_month_data = (curr_month, today) => {
@@ -67,11 +73,37 @@ const CALENDAR = (function(){
 				}
 				day['date'] = pos_date;
 				day['id'] = day['month'] + '_' +day['date'];
+				day['available'] = 8;
+				ID_MAP[day['id']] = day; //save reference to object
 				month_data[i].push(day);
 				cal_pos++;
 			}
 		}
 		return month_data;
+	}
+	
+	//Javascript Date range = 0 - 11, Mysql Date range 1-12, 
+	//javascript however accepts the format string 'YYYY-MM-DD' and treats MM as 1-12 and won't accept 0
+	this.process_month_data = (month_data, apt_data) => {
+		apt_data.forEach( (rec) => {
+			//Remove prepending 0's from month or date values as javascript behaves really badly
+			rec['date'] = rec['date'].split('').filter( (e,i) => {
+				if(i==0)return e; 
+				else if(rec['date'][i-1]=='-'&&e!='0'||rec['date'][i-1]!='-') return e;
+			}).join('');
+			//Get id of object using fixed date from above
+			let id = rec['date'].split('-');
+			id = `${id[1]-1}_${id[2]}`;
+			//ID_MAP contains a map to all objects so we can reference and change object values 
+			ID_MAP[id]['appointments'] = rec['appointments']
+			let available_slots = rec['appointments'].split('').reduce( (acc, e) => {
+				acc += e=='0'?1:0;
+				return acc;
+			}, 0)
+			ID_MAP[id]['available'] = available_slots;
+			console.log(available_slots)
+		})
+
 	}
 
 	this.create_month_view = (id, month_data = this.month_data) =>{
@@ -79,8 +111,7 @@ const CALENDAR = (function(){
 		//Create Header for month view
 		month_view.append( this.createHead() );
 		month_view.append( this.create_month_body(month_data) );
-		this.month_view = month_view;
-		$(id).append( this.month_view );
+		$(id).append( month_view );
 	}
 	
 	this.createNavigation = ()=>{
@@ -111,7 +142,9 @@ const CALENDAR = (function(){
 	}
 	this.create_month_day = (day) => {
 		let day_elem = $("<div>",{id:day['id'], class:'day unselected'});
-		day_elem.append( $('<p>').append(day['date']) );
+		day_elem.append( $('<p>').append(
+			`${day['date']}<br>${day['available']} Available`
+		));
 		day_elem.on("click", this.elementClick);
 		day_elem.on("mouseenter mouseexist", this.elementHover);
 		return day_elem;
